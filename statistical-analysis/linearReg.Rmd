@@ -1,0 +1,454 @@
+---
+title: "Linear Regression Model"
+output:
+  html_document:
+    df_print: paged
+---
+
+## Factors that affect a student's score in a course
+
+### ---------- load data ----------
+
+Data is from Wooldrigde(2015). Introductory econometrics: A modern approach
+
+```{r}
+load("econ.RDA")
+```
+
+
+Preview the data
+
+```{r}
+str(econ)
+head(econ)
+```
+
+
+Dependant variable is Score. For linear regression, linear means linear in parameters.
+
+Suppose interested to know how a change in College GPA can change a student's final score, can fit a simple linear regression:
+
+```{r}
+slm <- lm(score ~ colgpa, data = econ)
+summary(slm)
+```
+
+coefficients
+
+```{r}
+slm$coefficients
+x <- econ$colgpa
+y <- econ$score
+beta1.hat <- cov(x,y) / var(x) # s_xx = (n-1) * var(x)
+beta1.hat
+beta1.hat <- cor(x,y) * sd(y) / sd(x)
+
+```
+
+
+quantile
+
+```{r}
+alpha <- .05
+n <- nrow(econ)
+q <- qt(p = 1 - alpha/2, df = n-2) 
+```
+
+residual standard error
+
+```{r}
+beta0.hat <- mean(y) - beta1.hat * mean(x)
+y.hat <- beta0.hat + beta1.hat * x
+res <- y - y.hat
+sigma.hat <- sqrt(sum(res^2)/(n-2))
+```
+
+
+Std.Error, t value and p-value for beta1
+
+```{r}
+sxx <- (n-1) * var(x)
+s1 <- sigma.hat / sqrt(sxx)
+T1 <- beta1.hat / s1
+pval <- 2 * pt(q = -abs(T1), df = n-2)
+```
+
+Std.Error, t value and p-value for beta0
+
+```{r}
+s0 <- sigma.hat * sqrt(1/n + mean(x)^2 / sxx)
+T0 <- beta0.hat / s0
+pval <- 2 * pt(q = -abs(T0), df = n-2)
+```
+
+
+Want to know if the effect of colgpa is significant.
+
+1. Specify null hypothesis, e.g. H0: B1 = 0
+
+2. Look at the data y and try to find a test statistics T = T(y) such that extreme values of T would be unlikely if $H_0$ were true. Need to know the distribution of  T under $H_0$. By **likelihood ratio test method**, $\hat{B_1}/s_1$ can be chosen ($s1 = \hat{\sigma}/s_{xx}$)
+
+\[\hat{B_1}/s_1|H_0 \sim t_{n-2} \]
+
+3. if $T_{obs}$  is the particular value of the test statistic calculated for dataset $y_{obs}$, then 
+
+\[p = Pr(T> T_{obs}|H_0)\]
+
+is the probability that a new, randomly selected dataset y will have a more extreme value of the rest statistic than $y_{obs}$
+
+
+
+### ---------- simple linear model: model checking ----------
+
+
+first create a perfect linear model as a contrast
+
+```{r}
+x0 <- rnorm(n) # predictors
+eps <- rnorm(n) # errors
+y0 <- 1 + x0 + eps
+plm <- lm(y0 ~ x0)
+```
+
+
+1. check the linear trend, i.e. E(y|x) = beta0 + beta1*x
+
+```{r}
+
+par(mfrow = c(1,2), mar = c(4,4,4,0)+.1)
+pt.cex <- .7
+{plot(x, y, pch = 16, cex = pt.cex, xlab = "x", ylab = "y", main = "Simple Linear Model")
+abline(slm, col = "red")}
+{plot(x0, y0, pch = 16, cex = pt.cex, xlab = "x", ylab = "y", main = "Perfect Linear Model")
+abline(plm, col = "red")}
+```
+
+2. check conditional homoscedasticity
+
+Residuals vs Fitted Values
+
+```{r}
+par(mfrow = c(1,2), mar = c(4,4,4,0)+.1)
+pt.cex <- .7
+{plot(x = predict(slm), y = residuals(slm), # R way of calculating these
+     pch = 16, cex = pt.cex,
+     xlab = "Fitted Values", ylab = "Residuals", main = "Simple Linear Model")
+abline(h = 0, col = "red", lty = 2)} # add horizontal line
+{plot(x = predict(plm), y = residuals(plm), # R way of calculating these
+     pch = 16, cex = pt.cex,
+     xlab = "Fitted Values", ylab = "Residuals", main = "Perfecr Linear Model")
+abline(h = 0, col = "red", lty = 2)} # add horizontal line
+```
+
+
+2. check normality
+
+```{r}
+zres <- residuals(slm)/sigma.hat
+# histogram
+par(mfrow = c(2,2), mar = c(4,4,1,0)+.1)
+nbr <- 40 # may dramatically affect the histogram
+{hist(zres,
+     breaks = nbr, # number of bins
+     freq = FALSE, # make area under hist = 1 (as opposed to counts)
+     xlab = "Standardized Residuals", main = "Simple Linear Model")
+# add a standard normal curve for reference
+curve(dnorm, add = TRUE, col = "red")}
+
+{hist(eps,
+     breaks = nbr, # number of bins
+     freq = FALSE, # make area under hist = 1 (as opposed to counts)
+     xlab = "Standardized Residuals", main = "Perfect Linear Model")
+# add a standard normal curve for reference
+curve(dnorm, add = TRUE, col = "red")}
+```
+
+qq plots
+
+shows that the simple linear model is a bit left skewed.
+```{r}
+{qqnorm(zres, main = "Simple Linear Model", pch = 16, cex = .7)
+qqline(zres, col = "red", lty = 2)}
+{qqnorm(eps, main = "Perfect Linear Model", pch = 16, cex = .7)
+qqline(eps, col = "red", lty = 2)}
+```
+
+
+### ---------- simple linear regression vs two-sample t test ----------
+
+When the independent variable is a binary vairable, the simple linear regression is equivalent to a two-sample t test.
+
+e.g.: y = score, x = echonhs
+
+Group1: econhs = 1, students who have taken econ in HS
+
+Group2: econhs = 2, students who have not eaken econ in HS
+
+Model: $y_i = B_0 + B_1x_i + e_i$
+
+t statistic (with unknown $\sigma$) for testing $H_{0}: B_{1} = 0$ is equivalent to that of a two sample t test:
+
+\[t = \frac{\bar{x_1} - \bar{x_2}}{s_1 \sqrt{1/n_1 + 1/n_2}} \sim t(n1+n2-2) \] 
+
+
+```{r}
+model <- lm(score ~ econhs, data = econ)
+# summary of linear model
+summary(model)
+# two-sample t test (not paired, sample sizes different)
+t.test(score ~ econhs, var.equal = TRUE, data = econ)
+# anova
+summary(aov(score ~ econhs, data = econ))
+# replicate the above results
+n <- nrow(econ)
+res <- residuals(model)
+sigma.hat <- sqrt(sum(res^2)/(n-2))
+id <- (econ$econhs == 1)
+mean1 <- mean(econ$score[id])
+mean0 <- mean(econ$score[!id])
+n1 <- sum(id)
+n2 <- n - n1
+tval <- (mean0 - mean1) / (sigma.hat * sqrt(1/n1 + 1/n2))
+tval
+```
+
+t-test review link:
+
+https://blog.minitab.com/blog/adventures-in-statistics-2/understanding-t-tests-1-sample-2-sample-and-paired-t-tests
+
+
+t-test are a type of hypothesis testing that allows one to compare means.
+
+1. 1-sample t-test $t = \frac{\bar{x} - \mu_0}{s/\sqrt{n}}$, analogy is that t-value is signal-to-noise ratio. The numerator is the signal, which is taking the sample mean and subtract the null hypothesis value. The denominator is the noise, which is the standard error of the mean. This statistic indicates how accurately your sample estimates the mean of the population. A larger number indicates the sample estimate is less precise because it has more random error. Including noise factor to determine whether the signal is large enough to standout from it. Relatively large signals and low levels of noise produce larger t-values.
+
+2. A paired t-test
+
+Paired t-test is just 1-sample t-test.1-sample t-test compares one sample mean to a null hypothesis value. A paired t-test simply calculates the difference between paired observations (e.g., before and after) and then performs a 1-sample t-test on the differences.
+
+3. Two-sample T-test
+
+2-sample t-test takes sample data from two groups and boils it down to the t-value. Unlike the paired t-test, 2-sample t-test requires independent groups for each sample.
+
+\[t = \frac{\bar{x_1} - \bar{x_2}}{s}\]
+
+For 2-sample t-test the numerator is the signal, the difference between the two means. Default hypothesis is 2 groups are equal. Denominator is the noise.
+
+
+### ---------- multiple linear regression ----------
+
+partialling out interpretation
+
+```{r}
+model1 <- lm(score ~ colgpa + hsgpa, data = econ)
+model1$coefficients
+model2 <- lm(colgpa ~ hsgpa, data = econ)
+rr <- model2$residuals
+model3 <- lm(econ$score ~ rr)
+model3$coefficients
+```
+
+## Multiple Linear Regression
+
+The problem with simple linear regression is that it is very difficult to draw ceteris paribus conclusions about how x affects y. The key assumption -- that all other factors affecting y are uncorrelated with x -- is often unrealistic. 
+
+The general Multiple Linear Regression Model with n samples and p variables can be written as 
+
+\[ y_i = B_0 + B_1x_{i1} + ... + B_{p}x_{ip} + e_i\]
+
+With $e_i \sim N(0, \sigma^2)$. Can also write the model in matrix notation
+
+$y = XB + e$, $e \sim N(0, \sigma^2I)$
+
+y is a nX1 vector, B is a px1 vector of params and X is an nXp matrix, called a model matrix.
+
+By OLS or MLE, can show that
+
+$\hat{B} = (X'X)^{-1}X'y$ where $\hat{B} \sim N(B, \sigma^2(X'X)^{-1})$
+
+The fitted response vector is given by:
+
+$\hat{y} \sim N(B, \sigma^2(X'X)^{-1})$
+
+The residuals are given by 
+
+$e = y - \hat{y} = (I-H)y$
+
+unbiased estimator of $\sigma^2$
+
+$\sigma^2 = \frac{e'e}{n-p}$
+
+
+E.G. if only hvae 2 covariates colgpa and hsgpa and the fitted model is written as:
+
+$\hat{y_i} = \hat{B_0} + \hat{B_1}colgpa + \hat{B_2}hsgpa$
+
+One way to express $\hat{B_1}$ is 
+
+$\hat{B_1} = \frac{\sum_{i=1}^{n}\hat{r_{i1}}y_i}{\sum_{i=1}^{n}\hat{r_{i1}}^2}$
+
+The power of Multiple regression analysis is that it provides a ceteris paribus interpretation even though the data have not been collected in a ceteris paribus fashion. $\hat{B_1}$ means the effect of colgpa on score with hsgpa fixed.
+
+### interaction effect
+
+Interaction can be introduced between any type of covariate, continuous and continuous, continuous and discrete, discrete and discrete.
+
+
+e.g. if wish to know whether the impact of colgpa on score would be different or not if a student has taken calculus before, need to introduct interaction term:
+
+$y_i = B_0 + B_1colgpa_i + B2I(calculus_i = 1) +B_3(colgpa*I(calculus_i=1))+e_i$
+
+B2 measures the difference in score between the two groups when colgpa = 0.
+
+Two questions might ask:
+
+1. Whether the effect of colgpa on score is the same for the two groups of students. This leads to hypothesis testing H0: B2 = 0. This hypothesis puts no restrictions on the difference in intercepts, B2. A difference in score between the two groups are allowed under this null, but must be the same at all levels of GPA points.
+
+2. Whether the average score is identical for the two groups of students who have the same levels of colgpa. This leads to hypothesis testing H0: B2 = B3 = 0 which requires an F test.
+
+
+```{r}
+# partialling out interpretation
+model1 <- lm(score ~ colgpa + hsgpa, data = econ)
+model1$coefficients
+model2 <- lm(colgpa ~ hsgpa, data = econ)
+rr <- model2$residuals
+model3 <- lm(econ$score ~ rr)
+model3$coefficients
+model4 <- lm(score ~ colgpa + calculus, data = econ)
+# colgpa*calculus = colgpa + calculus + colgpa:calculus
+model5 <- lm(score ~ colgpa*calculus, data = econ)
+# substract the mean of colgpa
+# this only changes the estimated coefficient of calculus and its std error
+# now beta2 means the effect of calculus at the level colgpa = mean(colgpa)
+econ_tmp <- econ
+econ_tmp$colgpa <- econ$colgpa - mean(econ$colgpa)
+model6 <- lm(score ~ colgpa*calculus, data = econ_tmp)
+```
+
+### -------- model selection ---------
+
+1. Minimize Residual Sum Square
+
+2. Don't overfit
+
+3. Trade off between explanatory vs predictive power
+
+Selections:
+
+- Forward selection
+
+- Backward selection
+
+- Stepwise selection
+
+- Lasso, minimize SSE with penalty term
+
+```{r}
+# bounds for model selection
+M0 <- lm(score ~ 1, data = econ) # minimal model: intercept only
+# maximal model: all main effects and all interaction effects except with career
+Mfull <- lm(score ~ (. - acteng - actmth)^2, data = econ)
+# forward (trace prints out information)
+Mfwd <- step(object = M0, scope = list(lower = M0, upper = Mfull), direction = "forward", trace = FALSE)
+# backward
+Mbck <- step(object = Mfull, scope = list(lower = M0, upper = Mfull), direction = "backward", trace = FALSE)
+# stepwise
+Mstart <- lm(score ~ . - acteng - actmth, data = econ)
+Mstep <- step(object = Mstart, scope = list(lower = M0, upper = Mfull), direction = "both", trace = FALSE)
+# compare the three models
+Mfwd$call
+Mbck$call
+Mstep$call
+# compare the AIC for three models
+AIC(Mfwd)
+AIC(Mbck)
+AIC(Mstep)
+# Mstep gives the best model, we then manully select the variables
+# # relabel att levels
+econ2 <- econ
+levels(econ2$att) <- c("0", "0", "1") # 1 is for excellent attendence
+# # also delete some insignificant effects
+model <- lm(formula = score ~ age + work + colgpa + hsgpa + acteng +
+            act + calculus + acteng:act +
+            work:act + age:calculus + colgpa:att +
+            hsgpa:mothcoll + colgpa:male +
+            acteng:att + acteng:mothcoll, data = econ2)
+# --------- variable selection using lasso ---------
+library(caret)
+library(glmnet)
+ctrl <- trainControl(method = "cv", number = 10)
+tuneGrid <- expand.grid(.alpha = 1, .lambda = seq(.01, 1, length = 100))
+glmnTuned <- train(score ~ ., data = econ, method = "glmnet", 
+                   tuneGrid = tuneGrid,
+                   trControl = ctrl)
+glmnTuned$bestTune
+# we find the best lambda = 0.33
+# get the coefficients of the best tuned model
+coef(glmnTuned$finalModel, s = 0.33)
+```
+
+### Model Diagnostics
+
+1. Scatterplot
+
+```{r}
+pairs(~ age + work + study + colgpa + hsgpa + acteng + actmth + act + score, data = econ)
+library(corrplot)
+tmp <- data.matrix(econ[ ,c(1:3,5:9,16)])
+corrplot(cor(tmp), method = "circle")
+```
+
+
+2. residuals vs fitted values
+
+```{r}
+model <- Mstep
+res <- residuals(model)
+X <- model.matrix(model)
+H <- X %*% solve(t(X) %*% X) %*% t(X)
+h <- diag(H)
+res.stu <- res/sqrt(1-h)
+cex <- .8 # controls the size of the points and labels
+par(mar = c(4,4,.1,.1))
+{plot(predict(model), res, pch = 21, bg = "black", cex = cex, cex.axis = cex,
+     xlab = "Fitted Values", ylab = "Residuals")
+points(predict(model), res.stu, pch = 21, bg = "red", cex = cex)
+legend(x = "topright", c("Residuals", "Studentized Residuals"),
+       pch = 21, pt.bg = c("black", "red"), pt.cex = cex, cex = cex)}
+```
+
+
+3. Normality
+
+```{r}
+# plot standardized residuals
+sigma.hat <- sqrt(sum(resid(model)^2)/model$df)
+cex <- .8
+par(mar = c(4,4,.1,.1))
+{hist(res/sigma.hat, breaks = 40, freq = FALSE, cex.axis = cex,
+     xlab = "Standardized Residuals", main = "")
+curve(dnorm(x), col = "red", add = TRUE)} # theoretical normal curve}
+```
+
+
+4. Colinearity
+
+If two covariates are highly correlated, regression has trouble figuring out whether change in y is due to one covariate or the other. Thus estimates of B can change a lot from one random sample to another. This is known as variance inflation. Can detect Colinearity by checking VIF.
+
+```{r}
+# VIF: variance inflation factors, greater than 10 may be a concern
+# the variance inflation factors are the diagonals of the correlation matrix
+VIF <- diag(solve(cor(X[,-1])))
+VIF
+# re-fit the model and then go back to diagnostics
+# model <- lm(formula = score ~ work + study + econhs + colgpa + hsgpa + 
+#             act + calculus + mothcoll + econhs:hsgpa + 
+#             study:act  + hsgpa:mothcoll + 
+#             colgpa:male + male:calculus + work:act + act:calculus + hsgpa:act, 
+#             data = econ)
+model <- lm(formula = score ~ work + colgpa + hsgpa + 
+              calculus + colgpa:male + male:calculus, data = econ)
+pairs(~ work + colgpa + hsgpa + score, data = econ)
+corrplot(cor(econ[,c("work", "colgpa", "hsgpa", "score")]), method = "circle")
+```
+
