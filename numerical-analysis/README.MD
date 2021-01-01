@@ -1,4 +1,4 @@
-*Numerical Analysis Projects:*
+**Numerical Analysis Projects:**
 
 1. Cubic Splines
 2. Bezier Curves
